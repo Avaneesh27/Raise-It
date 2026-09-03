@@ -21,6 +21,8 @@ export interface RAGQueryResult {
   answer: string;
   sources: RAGSource[];
   isFallback?: boolean;
+  latencyMs?: number;
+  telemetry?: any;
 }
 
 export class AIProxyService {
@@ -84,6 +86,7 @@ export class AIProxyService {
    */
   static async queryRAG(params: {
     question: string;
+    use_rag?: boolean;
     context?: {
       category?: string;
       department?: string;
@@ -96,6 +99,7 @@ export class AIProxyService {
         `${AI_SERVICE_URL}/internal/rag/query`,
         {
           question: params.question,
+          use_rag: params.use_rag !== false,
           context: params.context || {}
         },
         {
@@ -109,7 +113,9 @@ export class AIProxyService {
 
       return {
         answer: response.data.answer,
-        sources: response.data.sources || []
+        sources: response.data.sources || [],
+        latencyMs: response.data.latencyMs,
+        telemetry: response.data.telemetry
       };
     } catch (err: any) {
       console.warn(`[AIProxyService] RAG service warning: ${err.message}. Employing deterministic grounded fallback.`);

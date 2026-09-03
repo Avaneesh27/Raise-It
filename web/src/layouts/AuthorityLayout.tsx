@@ -12,7 +12,9 @@ import {
   Moon,
   Building2,
   Menu,
-  X
+  X,
+  Map,
+  CheckCircle2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { CivicAssistantModal } from '../components/CivicAssistantModal';
@@ -32,6 +34,8 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
   const navItems = [
     { label: 'Workload Dashboard', path: '/authority', icon: LayoutDashboard },
     { label: 'Assigned Issues', path: '/authority/issues', icon: ClipboardList },
+    { label: 'Issues Map', path: '/authority/map', icon: Map },
+    { label: 'Resolutions', path: '/authority/resolutions', icon: CheckCircle2 },
     { label: 'Priority Locations', path: '/authority/priority-locations', icon: MapPin },
     { label: 'Department Analytics', path: '/authority/analytics', icon: BarChart3 }
   ];
@@ -107,7 +111,7 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
           <button
             onClick={() => setAssistantOpen(true)}
-            className="w-full flex items-center justify-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-xl text-xs font-bold shadow-md transition"
+            className="w-full flex items-center justify-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
           >
             <Bot className="w-4 h-4" />
             <span>Civic Assistant (SOPs)</span>
@@ -116,7 +120,7 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
           <div className="flex items-center justify-between pt-1">
             <button
               onClick={toggleTheme}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               title="Toggle Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
@@ -124,7 +128,7 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
 
             <button
               onClick={onLogout}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -140,12 +144,12 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              className="md:hidden text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500">Department Jurisdiction:</span>
+              <span className="text-xs text-slate-500 hidden sm:inline">Department Jurisdiction:</span>
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                 {user?.department?.name || 'Roads & Infrastructure'}
               </span>
@@ -155,10 +159,10 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setAssistantOpen(true)}
-              className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 transition"
+              className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 transition cursor-pointer"
             >
               <Bot className="w-3.5 h-3.5" />
-              <span>Municipal Assistant</span>
+              <span className="hidden sm:inline">Municipal Assistant</span>
             </button>
 
             <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
@@ -169,6 +173,31 @@ export const AuthorityLayout: React.FC<AuthorityLayoutProps> = ({ user, onLogout
             </div>
           </div>
         </header>
+
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white dark:bg-[#0d1322] border-b border-slate-200 dark:border-slate-800 p-4 space-y-2 z-30 shadow-xl">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                    active
+                      ? 'bg-emerald-600 text-white font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         {/* Page Outlet */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8">

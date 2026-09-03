@@ -27,13 +27,16 @@ export const queryCivicAssistant = async (req: AuthRequest, res: Response): Prom
 
     const ragResult = await AIProxyService.queryRAG({
       question: validated.question,
+      use_rag: validated.use_rag,
       context
     });
 
     res.json({
       answer: ragResult.answer,
       sources: ragResult.sources,
-      isFallback: ragResult.isFallback || false
+      isFallback: ragResult.isFallback || false,
+      latencyMs: ragResult.latencyMs,
+      telemetry: ragResult.telemetry
     });
   } catch (err: any) {
     res.status(400).json({ message: err.errors?.[0]?.message || err.message });

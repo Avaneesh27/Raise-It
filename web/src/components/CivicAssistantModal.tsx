@@ -15,6 +15,8 @@ interface Message {
   text: string;
   sources?: RAGSource[];
   isFallback?: boolean;
+  latencyMs?: number;
+  useRag?: boolean;
 }
 
 export const CivicAssistantModal: React.FC<CivicAssistantModalProps> = ({
@@ -25,6 +27,7 @@ export const CivicAssistantModal: React.FC<CivicAssistantModalProps> = ({
 }) => {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [useRag, setUseRag] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
       sender: 'assistant',
@@ -40,18 +43,20 @@ export const CivicAssistantModal: React.FC<CivicAssistantModalProps> = ({
     const q = customQuery || question;
     if (!q.trim() || loading) return;
 
-    const userMsg: Message = { sender: 'user', text: q };
+    const userMsg: Message = { sender: 'user', text: q, useRag };
     setMessages((prev) => [...prev, userMsg]);
     if (!customQuery) setQuestion('');
     setLoading(true);
 
     try {
-      const res = await ragApi.query(q, reportId);
+      const res = await ragApi.query(q, reportId, useRag);
       const assistantMsg: Message = {
         sender: 'assistant',
         text: res.data.answer,
         sources: res.data.sources,
-        isFallback: res.data.isFallback
+        isFallback: res.data.isFallback,
+        latencyMs: res.data.latencyMs,
+        useRag
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
@@ -88,12 +93,29 @@ export const CivicAssistantModal: React.FC<CivicAssistantModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* Academic Evaluation Mode Toggle */}
+            <button
+              type="button"
+              onClick={() => setUseRag(!useRag)}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all flex items-center space-x-1.5 ${
+                useRag
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+              }`}
+              title="Toggle between Grounded RAG Retrieval mode and Direct LLM Baseline"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${useRag ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span>{useRag ? 'RAG Grounded' : 'Baseline LLM'}</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Quick Suggested Inquiries */}
@@ -141,16 +163,36 @@ export const CivicAssistantModal: React.FC<CivicAssistantModalProps> = ({
                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/80">
                     <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1.5">
                       <FileText className="w-3.5 h-3.5" />
-                      <span>Verified Citations:</span>
+                      <span>Verified Citations (FAISS Similarity):</span>
                     </div>
-                    <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                    <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
                       {msg.sources.map((s, sIdx) => (
-                        <li key={sIdx} className="bg-white dark:bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{s.documentName}</span>
-                          <span className="text-slate-400 text-[11px]">{s.pageOrSection}</span>
+                        <li key={sIdx} className="bg-white dark:bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{s.documentName}</span>
+                            <span className="text-slate-400 text-[11px] truncate">{s.pageOrSection}</span>
+                          </div>
+                          {s.relevanceScore !== undefined && (
+                            <span className="shrink-0 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                              {Math.round(s.relevanceScore * 100)}% Match
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+
+                {/* Telemetry Footer */}
+                {msg.sender === 'assistant' && (
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-2 font-mono">
+                    <span>{msg.useRag ? 'Mode: Grounded RAG' : 'Mode: Baseline LLM'}</span>
+                    {msg.latencyMs !== undefined && (
+                      <>
+                        <span>•</span>
+                        <span>Latency: {msg.latencyMs}ms</span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

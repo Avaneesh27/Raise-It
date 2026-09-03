@@ -12,12 +12,13 @@ import {
   MapPin,
   Shield,
   Menu,
-  X
+  X,
+  Award,
+  Trophy
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { User as UserType } from '../types';
-import { ReportCreationModal } from '../components/citizen/ReportCreationModal';
 import { CivicAssistantModal } from '../components/CivicAssistantModal';
 
 interface CitizenLayoutProps {
@@ -31,7 +32,6 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [assistantModalOpen, setAssistantModalOpen] = useState(false);
   const [activeReportIdForAssistant, setActiveReportIdForAssistant] = useState<string | undefined>();
 
@@ -91,9 +91,22 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
               My Reports
             </Link>
 
+            {/* Badges / Achievements Option in Navbar */}
+            <Link
+              to="/citizen/badges"
+              className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                isActive('/citizen/badges')
+                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Award className="w-4 h-4 text-amber-500" />
+              <span>Badges</span>
+            </Link>
+
             <button
               onClick={() => handleOpenAssistant()}
-              className="text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5"
+              className="text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Bot className="w-4 h-4 text-purple-500" />
               <span>Civic Assistant</span>
@@ -111,21 +124,21 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
             </Link>
           </nav>
 
-          {/* Actions: Primary "+ Report a Problem" & Theme & Logout */}
+          {/* Actions: Primary "+ Report a Problem" Page Navigation & Theme & Logout */}
           <div className="flex items-center gap-3">
-            {/* Very Prominent Primary Action Button */}
-            <button
-              onClick={() => setReportModalOpen(true)}
+            {/* Dedicated Page Navigation (No Popup Modal) */}
+            <Link
+              to="/citizen/report"
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/25 flex items-center gap-1.5 transition-all"
             >
               <Plus className="w-4 h-4" />
               <span>+ Report a Problem</span>
-            </button>
+            </Link>
 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               title="Toggle Day/Night"
             >
               {theme === 'dark' ? (
@@ -137,7 +150,7 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
 
             <button
               onClick={onLogout}
-              className="hidden sm:flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition ml-1"
+              className="hidden sm:flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition ml-1 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout</span>
@@ -151,7 +164,7 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
         <Outlet
           context={{
             user,
-            onOpenReportModal: () => setReportModalOpen(true),
+            onOpenReportModal: () => navigate('/citizen/report'),
             onOpenAssistant: handleOpenAssistant
           }}
         />
@@ -183,21 +196,25 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
           <span>Reports</span>
         </Link>
 
-        {/* Center Floating Plus Button */}
-        <button
-          onClick={() => setReportModalOpen(true)}
-          className="-mt-5 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/40 flex items-center justify-center font-bold"
+        {/* Center Floating Plus Button: Navigates to dedicated /citizen/report page */}
+        <Link
+          to="/citizen/report"
+          className="-mt-5 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/40 flex items-center justify-center font-bold active:scale-95 transition"
         >
           <Plus className="w-6 h-6" />
-        </button>
+        </Link>
 
-        <button
-          onClick={() => handleOpenAssistant()}
-          className="flex flex-col items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-purple-600"
+        <Link
+          to="/citizen/badges"
+          className={`flex flex-col items-center gap-1 text-[11px] font-semibold ${
+            isActive('/citizen/badges')
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500'
+          }`}
         >
-          <Bot className="w-5 h-5" />
-          <span>Assistant</span>
-        </button>
+          <Award className="w-5 h-5 text-amber-500" />
+          <span>Badges</span>
+        </Link>
 
         <Link
           to="/citizen/profile"
@@ -211,16 +228,6 @@ export const CitizenLayout: React.FC<CitizenLayoutProps> = ({ user, onLogout }) 
           <span>Profile</span>
         </Link>
       </nav>
-
-      {/* Report Creation Modal */}
-      <ReportCreationModal
-        isOpen={reportModalOpen}
-        onClose={() => setReportModalOpen(false)}
-        onSuccess={(reportId) => {
-          setReportModalOpen(false);
-          navigate('/citizen/reports');
-        }}
-      />
 
       {/* Contextual RAG Civic Assistant Modal */}
       <CivicAssistantModal

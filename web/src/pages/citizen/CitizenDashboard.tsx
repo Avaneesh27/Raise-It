@@ -15,7 +15,9 @@ import {
   Sparkles,
   ChevronRight,
   Shield,
-  Layers
+  Layers,
+  Trophy,
+  Award
 } from 'lucide-react';
 import { citizenApi } from '../../services/api';
 import { CitizenReportDetailsModal } from '../../components/citizen/CitizenReportDetailsModal';
@@ -76,13 +78,13 @@ export const CitizenDashboard: React.FC = () => {
         </div>
 
         {/* Primary CTA: + Report a Problem */}
-        <button
-          onClick={onOpenReportModal}
+        <Link
+          to="/citizen/report"
           className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition"
         >
           <Plus className="w-5 h-5" />
           <span>+ Report a Problem</span>
-        </button>
+        </Link>
       </div>
 
       {/* 2. Direct Camera / Upload Quick Launcher Banner (PRD Section 9) */}
@@ -99,13 +101,13 @@ export const CitizenDashboard: React.FC = () => {
             Take a photo, attach your location, and let RaiseIt automatically verify the problem, detect recurring clusters, and alert your ward engineer.
           </p>
           <div className="pt-2 flex flex-wrap gap-3">
-            <button
-              onClick={onOpenReportModal}
+            <Link
+              to="/citizen/report"
               className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-emerald-800 font-bold text-xs shadow-md transition flex items-center gap-2"
             >
               <Camera className="w-4 h-4 text-emerald-600" />
               <span>Capture / Upload Photo</span>
-            </button>
+            </Link>
             <button
               onClick={() => onOpenAssistant()}
               className="px-5 py-2.5 rounded-xl bg-emerald-700/60 hover:bg-emerald-700/80 text-white font-semibold text-xs border border-white/20 transition flex items-center gap-2"
@@ -167,12 +169,12 @@ export const CitizenDashboard: React.FC = () => {
                   : 'You have no resolved reports in your historical archive.'}
               </p>
               {activeTab === 'active' && (
-                <button
-                  onClick={onOpenReportModal}
+                <Link
+                  to="/citizen/report"
                   className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition"
                 >
                   + Lodge First Report
-                </button>
+                </Link>
               )}
             </div>
           ) : (
@@ -261,12 +263,42 @@ export const CitizenDashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => onOpenAssistant()}
-                className="w-full text-left p-2.5 rounded-xl bg-slate-50 dark:bg-[#0d1322] hover:bg-slate-100 dark:hover:bg-[#172138] border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 transition flex items-center justify-between"
+                className="w-full text-left p-2.5 rounded-xl bg-slate-50 dark:bg-[#0d1322] hover:bg-slate-100 dark:hover:bg-[#172138] border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 transition flex items-center justify-between cursor-pointer"
               >
                 <span>"What is the pothole repair SLA?"</span>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               </button>
             </div>
+          </div>
+
+          {/* Badges & Achievements Quick Widget */}
+          <div className="p-5 rounded-3xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Civic Badges &amp; XP
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {myReports.length * 25} Contribution Points
+                  </span>
+                </div>
+              </div>
+              <Link
+                to="/citizen/badges"
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+              >
+                <span>View</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Earn recognition levels and community badges for reporting verifiable defects in your ward.
+            </p>
           </div>
 
           {/* Nearby Neighborhood Issues */}

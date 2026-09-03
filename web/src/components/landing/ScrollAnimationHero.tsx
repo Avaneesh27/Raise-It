@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { User } from '../../types';
 
@@ -7,43 +6,55 @@ interface ScrollAnimationHeroProps {
   user: User | null;
 }
 
-const TOTAL_FRAMES = 149;
-const PRELOAD_BATCH = 15; // How many frames to preload per idle tick
+const TOTAL_FRAMES = 300;
 const FRAMES_BASE_PATH = '/frames';
 
-/** Zero-padded frame filename: frame_001.webp */
 const getFrameUrl = (index: number): string => {
   const padded = String(index).padStart(3, '0');
-  return `${FRAMES_BASE_PATH}/frame_${padded}.webp`;
+  return `${FRAMES_BASE_PATH}/frame_${padded}.jpg`;
 };
 
-/**
- * Cinematic scroll-driven frame animation hero.
- * 149 frames at 2560×1440 rendered on a canvas, scrubbed by scroll progress.
- * The section is 300vh tall — the canvas is sticky and stays pinned
- * while the frame sequence plays, then the page scrolls normally.
- */
-export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }) => {
+export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<Array<HTMLImageElement | null>>(new Array(TOTAL_FRAMES + 1).fill(null));
+  const loadingStatusRef = useRef<Map<number, 'loading' | 'loaded' | 'error'>>(new Map());
   const currentFrameRef = useRef(1);
+  const targetFrameRef = useRef(1);
   const rafRef = useRef<number | null>(null);
   const loadedCountRef = useRef(0);
 
   const [loadProgress, setLoadProgress] = useState(0);
   const [isInitialFrameReady, setIsInitialFrameReady] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
+  const [isHovering, setIsHovering] = useState(false);
 
-  // -------------------------------------------------------
-  // Draw frame to canvas
-  // -------------------------------------------------------
+  // Draw a frame, falling back to the closest loaded frame if requested one is still loading
   const drawFrame = useCallback((frameIndex: number) => {
     const canvas = canvasRef.current;
-    const img = imagesRef.current[frameIndex];
-    if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
+    if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    let img = imagesRef.current[frameIndex];
+    if (!img || !img.complete || img.naturalWidth === 0) {
+      // Find nearest loaded frame
+      let closestDist = Infinity;
+      let closestImg: HTMLImageElement | null = null;
+      for (let i = 1; i <= TOTAL_FRAMES; i++) {
+        const candidate = imagesRef.current[i];
+        if (candidate && candidate.complete && candidate.naturalWidth > 0) {
+          const dist = Math.abs(i - frameIndex);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestImg = candidate;
+          }
+        }
+      }
+      if (!closestImg) return;
+      img = closestImg;
+    }
+
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     const canvasW = canvas.width;
@@ -51,105 +62,89 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
     const imgW = img.naturalWidth;
     const imgH = img.naturalHeight;
 
-    // Cover: scale to fill canvas, centered
     const scale = Math.max(canvasW / imgW, canvasH / imgH);
     const drawW = imgW * scale;
     const drawH = imgH * scale;
     const offsetX = (canvasW - drawW) / 2;
     const offsetY = (canvasH - drawH) / 2;
 
-    ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
   }, []);
 
-  // -------------------------------------------------------
-  // Canvas resize handler
-  // -------------------------------------------------------
   const handleResize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
     const ctx = canvas.getContext('2d');
-    if (ctx) ctx.scale(dpr, dpr);
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'medium';
+    }
     drawFrame(currentFrameRef.current);
   }, [drawFrame]);
 
-  // -------------------------------------------------------
   // Load a single frame
-  // -------------------------------------------------------
   const loadFrame = useCallback((index: number, onLoaded?: () => void) => {
-    if (imagesRef.current[index]) {
+    if (index < 1 || index > TOTAL_FRAMES) return;
+    if (imagesRef.current[index] && imagesRef.current[index]?.complete) {
       onLoaded?.();
       return;
     }
+    if (loadingStatusRef.current.get(index) === 'loading') {
+      return;
+    }
+
+    loadingStatusRef.current.set(index, 'loading');
     const img = new Image();
     img.decoding = 'async';
 
     img.onload = () => {
       imagesRef.current[index] = img;
+      loadingStatusRef.current.set(index, 'loaded');
       loadedCountRef.current += 1;
       setLoadProgress(Math.round((loadedCountRef.current / TOTAL_FRAMES) * 100));
       onLoaded?.();
-    };
 
-    img.onerror = () => {
-      // PNG fallback if WebP not supported
-      const pngUrl = getFrameUrl(index).replace('.webp', '.png');
-      const fallback = new Image();
-      fallback.onload = () => {
-        imagesRef.current[index] = fallback;
-        loadedCountRef.current += 1;
-        onLoaded?.();
-      };
-      fallback.src = pngUrl;
-    };
-
-    img.src = getFrameUrl(index);
-  }, []);
-
-  // -------------------------------------------------------
-  // Progressive background preloading
-  // -------------------------------------------------------
-  const preloadRemaining = useCallback(() => {
-    let frameIndex = 2;
-
-    const loadNext = () => {
-      if (frameIndex > TOTAL_FRAMES) return;
-
-      const batch = Math.min(PRELOAD_BATCH, TOTAL_FRAMES - frameIndex + 1);
-      let loaded = 0;
-
-      for (let i = 0; i < batch; i++) {
-        const idx = frameIndex + i;
-        loadFrame(idx, () => {
-          loaded++;
-          if (loaded === batch) {
-            frameIndex += batch;
-            // Yield to main thread before next batch
-            if (typeof requestIdleCallback !== 'undefined') {
-              requestIdleCallback(loadNext, { timeout: 300 });
-            } else {
-              setTimeout(loadNext, 50);
-            }
-          }
-        });
+      // If this newly loaded frame is what we're currently trying to show, draw it!
+      if (Math.abs(index - targetFrameRef.current) <= 1) {
+        drawFrame(targetFrameRef.current);
       }
     };
 
-    if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(loadNext, { timeout: 500 });
-    } else {
-      setTimeout(loadNext, 100);
+    img.onerror = () => {
+      loadingStatusRef.current.set(index, 'error');
+    };
+
+    img.src = getFrameUrl(index);
+  }, [drawFrame]);
+
+  // Preload all frames progressively
+  const preloadAllFrames = useCallback(() => {
+    // First load keyframes across the sequence (every 5th frame)
+    for (let i = 1; i <= TOTAL_FRAMES; i += 5) {
+      loadFrame(i);
     }
+
+    // Then fill the rest
+    let nextIndex = 2;
+    const loadBatch = () => {
+      if (nextIndex > TOTAL_FRAMES) return;
+      const count = Math.min(10, TOTAL_FRAMES - nextIndex + 1);
+      for (let j = 0; j < count; j++) {
+        loadFrame(nextIndex + j);
+      }
+      nextIndex += count;
+      setTimeout(loadBatch, 30);
+    };
+
+    setTimeout(loadBatch, 50);
   }, [loadFrame]);
 
-  // -------------------------------------------------------
-  // Scroll handler → frame update
-  // -------------------------------------------------------
+  // Handle scroll events
   const handleScroll = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -158,10 +153,8 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
     const containerH = container.offsetHeight;
     const viewportH = window.innerHeight;
 
-    // Progress: 0 when section top is at viewport top, 1 when section bottom leaves viewport
-    // We want animation to fill the sticky 100vh, within 300vh scroll track
     const scrolled = -rect.top;
-    const scrollable = containerH - viewportH;
+    const scrollable = Math.max(1, containerH - viewportH);
     const progress = Math.min(Math.max(scrolled / scrollable, 0), 1);
 
     setScrollProgress(progress);
@@ -171,6 +164,15 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
       TOTAL_FRAMES
     );
 
+    targetFrameRef.current = targetFrame;
+
+    // Prioritize loading current and surrounding frames
+    loadFrame(targetFrame);
+    loadFrame(Math.min(TOTAL_FRAMES, targetFrame + 1));
+    loadFrame(Math.max(1, targetFrame - 1));
+    loadFrame(Math.min(TOTAL_FRAMES, targetFrame + 2));
+    loadFrame(Math.max(1, targetFrame - 2));
+
     if (targetFrame !== currentFrameRef.current) {
       currentFrameRef.current = targetFrame;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -178,19 +180,15 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
         drawFrame(targetFrame);
       });
     }
-  }, [drawFrame]);
+  }, [drawFrame, loadFrame]);
 
-  // -------------------------------------------------------
-  // Bootstrap
-  // -------------------------------------------------------
   useEffect(() => {
-    // Load frame 1 immediately
+    // Load frame 1 first
     loadFrame(1, () => {
       setIsInitialFrameReady(true);
       handleResize();
       drawFrame(1);
-      // Start progressive preloading in the background
-      preloadRemaining();
+      preloadAllFrames();
     });
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -202,18 +200,39 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
       window.removeEventListener('resize', handleResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [loadFrame, handleResize, handleScroll, preloadRemaining, drawFrame]);
+  }, [loadFrame, handleResize, handleScroll, preloadAllFrames, drawFrame]);
 
-  const getReportPath = () => {
-    if (!user) return '/signup';
-    if (user.role === 'CITIZEN') return '/citizen';
-    return '/';
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    }
   };
 
   return (
-    /* 300vh scroll track — the canvas stays sticky inside */
-    <div ref={containerRef} style={{ height: '300vh', position: 'relative' }} aria-label="Introduction animation">
-      {/* Sticky viewport-fill canvas container */}
+    <div 
+      ref={containerRef} 
+      style={{ height: '350vh', position: 'relative' }} 
+      aria-label="Introduction animation"
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      className="cursor-none"
+    >
+      {/* Small circle cursor following the mouse on hover */}
+      {isHovering && (
+        <div 
+          className="fixed pointer-events-none z-[100] border-2 border-white/90 bg-white/20 rounded-full backdrop-blur-[1px] shadow-sm transition-transform duration-75 ease-out"
+          style={{
+            left: mousePos.x,
+            top: mousePos.y,
+            width: '24px',
+            height: '24px',
+            transform: 'translate(-50%, -50%)',
+          }}
+        />
+      )}
+
       <div
         style={{
           position: 'sticky',
@@ -223,7 +242,6 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
           overflow: 'hidden',
         }}
       >
-        {/* Canvas */}
         <canvas
           ref={canvasRef}
           style={{
@@ -232,97 +250,54 @@ export const ScrollAnimationHero: React.FC<ScrollAnimationHeroProps> = ({ user }
             width: '100%',
             height: '100%',
             display: 'block',
-            objectFit: 'cover',
           }}
         />
 
-        {/* Loading veil — shown until first frame is ready */}
         {!isInitialFrameReady && (
-          <div className="absolute inset-0 bg-slate-900 flex items-center justify-center z-10">
-            <div className="space-y-3 text-center">
-              <div className="w-8 h-1 rounded-full bg-emerald-500 mx-auto animate-pulse" />
-              <p className="text-xs text-slate-400 tracking-widest uppercase">Loading</p>
+          <div className="absolute inset-0 bg-slate-950 flex items-center justify-center z-10">
+            <div className="text-xs text-white/50 tracking-widest uppercase font-mono animate-pulse">
+              Loading Sequence...
             </div>
           </div>
         )}
 
-        {/* Hero Overlay — persistent while animation plays */}
         {isInitialFrameReady && (
           <div
             className="absolute inset-0 flex flex-col justify-between z-10 pointer-events-none"
             style={{
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.0) 60%, rgba(0,0,0,0.5) 100%)',
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.0) 35%, rgba(0,0,0,0.0) 65%, rgba(0,0,0,0.7) 100%)',
             }}
           >
-            {/* Top: Brand */}
-            <div className="px-6 pt-24 sm:pt-28 lg:px-16">
-              <div
-                className="text-white"
-                style={{ opacity: Math.max(0, 1 - scrollProgress * 3) }}
-              >
-                <div className="text-xs font-bold tracking-[0.25em] uppercase text-emerald-400 mb-2">
-                  Municipal Civic Platform
-                </div>
-                <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-none">
-                  RAISEIT
+            {/* Top Brand */}
+            <div className="px-8 pt-28 lg:px-16" style={{ opacity: Math.max(0, 1 - scrollProgress * 3.5) }}>
+              <div className="text-white space-y-2">
+                <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-none drop-shadow-md">
+                  RAISEIT.
                 </h1>
-                <p className="mt-3 text-lg sm:text-xl font-medium text-white/80">
+                <p className="text-lg sm:text-xl text-white/90 font-medium tracking-wide drop-shadow">
                   Report. Track. Improve.
                 </p>
               </div>
             </div>
 
-            {/* Bottom: CTA + Scroll indicator */}
-            <div className="px-6 pb-10 sm:pb-12 lg:px-16">
-              {/* CTAs — fade out as scroll progresses */}
-              <div
-                className="flex flex-col sm:flex-row gap-3 pointer-events-auto mb-6"
-                style={{ opacity: Math.max(0, 1 - scrollProgress * 4) }}
-              >
-                <Link
-                  to={getReportPath()}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-lg shadow-emerald-900/40 transition"
-                >
-                  Report an Issue
-                </Link>
-                <a
-                  href="#how-it-works"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/20 text-white text-sm font-semibold transition"
-                >
-                  See How It Works
-                </a>
-              </div>
-
-              {/* Preload progress — shown until all frames loaded */}
-              {loadProgress < 100 && (
-                <div className="mb-4 max-w-xs">
-                  <div className="flex justify-between text-[10px] text-white/40 mb-1">
-                    <span>Loading animation</span>
-                    <span>{loadProgress}%</span>
-                  </div>
-                  <div className="h-0.5 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all"
-                      style={{ width: `${loadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Scroll indicator */}
+            {/* Bottom minimal scroll indicator & progress */}
+            <div className="px-8 pb-10 lg:px-16">
               {scrollProgress < 0.05 && (
-                <div className="flex items-center gap-2 text-white/50 animate-bounce pointer-events-none">
-                  <ChevronDown className="w-4 h-4" />
-                  <span className="text-xs font-medium tracking-wider uppercase">Scroll to explore</span>
+                <div className="flex items-center gap-2.5 text-white/80 pointer-events-none transition-opacity">
+                  <ChevronDown className="w-5 h-5 animate-bounce" />
+                  <span className="text-xs font-bold tracking-widest uppercase font-mono">Scroll to explore</span>
                 </div>
               )}
 
-              {/* Frame progress bar at very bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
+              {/* Minimal Preload progress */}
+              {loadProgress < 100 && (
+                <div className="absolute bottom-3 right-8 text-[11px] text-white/40 tracking-wider font-mono">
+                  {loadProgress}% Loaded
+                </div>
+              )}
+
+              {/* Progress bar line */}
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20">
                 <div
                   className="h-full bg-emerald-500 transition-none"
                   style={{ width: `${scrollProgress * 100}%` }}

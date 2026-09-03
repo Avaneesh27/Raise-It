@@ -1,61 +1,62 @@
-import re
-from typing import List, Dict, Any, Optional
-from app.rag.indexer import vector_store
+import time
+from typing import List, Dict, Any, Optional, Tuple
+from app.rag.embeddings import embedding_manager
+from app.rag.vector_store import vector_store
+from app.rag.indexer import indexer
 from app.utils.config import TOP_K_RETRIEVAL
 
 class CivicRetriever:
-  def __init__(self, top_k: int = TOP_K_RETRIEVAL):
-    self.top_k = top_k
+  """
+  Dense vector retriever using all-MiniLM-L6-v2 embeddings and FAISS Cosine Similarity.
+  """
+  def __init__(self, default_top_k: int = TOP_K_RETRIEVAL):
+    self.default_top_k = default_top_k
 
   def retrieve(
     self,
     query: str,
     context: Optional[Dict[str, Any]] = None,
     top_k: Optional[int] = None
-  ) -> List[Dict[str, Any]]:
+  ) -> Tuple[List[Dict[str, Any]], float]:
     """
-    Retrieves top-K most relevant chunks based on semantic matching and issue context
+    Retrieves top-K most relevant chunks with similarity scores and measures retrieval latency.
     """
-    if not vector_store.initialized or not vector_store.chunks:
-      vector_store.index_civic_directory()
+    start_time = time.time()
 
-    k = top_k or self.top_k
-    query_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', query.lower()))
-    if not query_tokens:
-      return []
+    # Ensure index is loaded
+    if vector_store.index.ntotal == 0:
+      indexer.index_all_documents()
 
-    scored_chunks = []
-    category_hint = (context.get("category") or "").lower() if context else ""
-    department_hint = (context.get("department") or "").lower() if context else ""
-    status_hint = (context.get("status") or "").lower() if context else ""
+    k = top_k or self.default_top_k
+    if not query.strip():
+      return [], 0.0
 
-    for chunk in vector_store.chunks:
-      overlap = len(query_tokens.intersection(chunk["keywords"]))
-      if overlap == 0:
-        continue
+    # 1. Generate query embedding
+    query_vector = embedding_manager.embed_query(query)
 
-      # Base relevance score
-      score = overlap / (len(query_tokens) + 1.0)
+    # 2. Perform FAISS vector similarity search
+    results = vector_store.search(query_vector, top_k=k)
 
-      # Context Boost: if chunk matches the complaint's active category
-      if category_hint and category_hint in chunk["content"].lower():
-        score += 0.35
+    # 3. Contextual relevance boost (if query is asked within a specific complaint view)
+    if context and results:
+      category = (context.get("category") or "").lower()
+      dept = (context.get("department") or "").lower()
 
-      # Context Boost: if chunk matches the department
-      if department_hint and department_hint in chunk["department"].lower():
-        score += 0.25
+      for item in results:
+        chunk_dept = (item.get("department") or "").lower()
+        chunk_cat = (item.get("category") or "").lower()
+        chunk_content = item.get("content", "").lower()
 
-      # Context Boost: if asking about complaint lifecycle / status
-      if status_hint and status_hint in chunk["content"].lower():
-        score += 0.20
+        # Slight boost if chunk matches active ticket department or category
+        if category and (category in chunk_cat or category in chunk_content):
+          item["similarity_score"] = min(1.0, round(item["similarity_score"] + 0.05, 4))
+        if dept and (dept in chunk_dept or dept in chunk_content):
+          item["similarity_score"] = min(1.0, round(item["similarity_score"] + 0.03, 4))
 
-      scored_chunks.append({
-        **chunk,
-        "score": round(score, 3)
-      })
+      # Re-sort after context boosting
+      results.sort(key=lambda x: x["similarity_score"], reverse=True)
 
-    # Sort descending by relevance score
-    scored_chunks.sort(key=lambda x: x["score"], reverse=True)
-    return scored_chunks[:k]
+    latency_ms = round((time.time() - start_time) * 1000, 2)
+    return results, latency_ms
 
 retriever = CivicRetriever()

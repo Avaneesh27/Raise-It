@@ -12,6 +12,8 @@ import { SignUp } from './pages/SignUp';
 import { CitizenLayout } from './layouts/CitizenLayout';
 import { CitizenDashboard } from './pages/citizen/CitizenDashboard';
 import { CitizenReportsPage } from './pages/citizen/CitizenReportsPage';
+import { CitizenReportIssuePage } from './pages/citizen/CitizenReportIssuePage';
+import { CitizenBadgesPage } from './pages/citizen/CitizenBadgesPage';
 import { CitizenAssistantPage } from './pages/citizen/CitizenAssistantPage';
 import { CitizenProfilePage } from './pages/citizen/CitizenProfilePage';
 
@@ -20,6 +22,8 @@ import { AuthorityLayout } from './layouts/AuthorityLayout';
 import { AuthorityDashboard } from './pages/authority/AuthorityDashboard';
 import { IssueList } from './pages/authority/IssueList';
 import { IssueDetails } from './pages/authority/IssueDetails';
+import { AuthorityMapPage } from './pages/authority/AuthorityMapPage';
+import { ResolutionReports } from './pages/authority/ResolutionReports';
 import { PriorityLocations } from './pages/authority/PriorityLocations';
 import { DepartmentAnalytics } from './pages/authority/DepartmentAnalytics';
 
@@ -124,6 +128,9 @@ export const App: React.FC = () => {
             >
               <Route index element={<CitizenDashboard />} />
               <Route path="reports" element={<CitizenReportsPage />} />
+              <Route path="report" element={<CitizenReportIssuePage />} />
+              <Route path="badges" element={<CitizenBadgesPage />} />
+              <Route path="achievements" element={<Navigate to="/citizen/badges" replace />} />
               <Route path="assistant" element={<CitizenAssistantPage />} />
               <Route path="profile" element={<CitizenProfilePage />} />
             </Route>
@@ -142,6 +149,8 @@ export const App: React.FC = () => {
               <Route index element={<AuthorityDashboard />} />
               <Route path="issues" element={<IssueList />} />
               <Route path="issues/:reportId" element={<IssueDetails />} />
+              <Route path="map" element={<AuthorityMapPage />} />
+              <Route path="resolutions" element={<ResolutionReports />} />
               <Route path="priority-locations" element={<PriorityLocations />} />
               <Route path="analytics" element={<DepartmentAnalytics />} />
             </Route>

@@ -21,6 +21,8 @@ venv/
 ENV/
 chroma_db/
 chroma_data/
+rag_data/
+evaluation_results/
 
 # Environment variables
 .env

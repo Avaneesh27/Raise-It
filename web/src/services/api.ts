@@ -98,8 +98,8 @@ export const adminApi = {
 };
 
 export const ragApi = {
-  query: (question: string, reportId?: string) =>
-    api.post('/rag/query', { question, reportId })
+  query: (question: string, reportId?: string, use_rag: boolean = true) =>
+    api.post('/rag/query', { question, reportId, use_rag })
 };
 
 export default api;

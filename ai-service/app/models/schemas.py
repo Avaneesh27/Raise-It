@@ -17,6 +17,7 @@ class RAGContext(BaseModel):
 class RAGQueryRequest(BaseModel):
   question: str
   context: Optional[RAGContext] = Field(default_factory=RAGContext)
+  use_rag: Optional[bool] = True
 
 class RAGSource(BaseModel):
   documentName: str
@@ -27,6 +28,8 @@ class RAGSource(BaseModel):
 class RAGQueryResponse(BaseModel):
   answer: str
   sources: List[RAGSource] = Field(default_factory=list)
+  latencyMs: Optional[float] = None
+  telemetry: Optional[Dict[str, Any]] = None
 
 class IndexDocumentRequest(BaseModel):
   filePath: str

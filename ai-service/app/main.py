@@ -2,13 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routes import classify, rag, documents
-from app.rag.indexer import vector_store
+from app.rag.indexer import indexer
+from app.rag.vector_store import vector_store
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
   print("[FastAPI AI Service] Starting up...")
-  indexed_count = vector_store.index_civic_directory()
-  print(f"[FastAPI AI Service] Ready. Indexed {indexed_count} verified civic knowledge chunks.")
+  indexed_count = indexer.index_all_documents()
+  print(f"[FastAPI AI Service] Ready. Indexed {indexed_count} verified civic knowledge chunks in FAISS.")
   yield
   print("[FastAPI AI Service] Shutting down...")
 

@@ -40,5 +40,6 @@ export const resolveReportSchema = z.object({
 
 export const ragQuerySchema = z.object({
   question: z.string().min(2, 'Question cannot be empty'),
-  reportId: z.string().optional()
+  reportId: z.string().optional(),
+  use_rag: z.boolean().optional()
 });
