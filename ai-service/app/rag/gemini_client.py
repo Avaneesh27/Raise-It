@@ -2,19 +2,47 @@ import os
 import time
 import httpx
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
+
+def _reload_env():
+  """
+  Reload .env from disk. Tries multiple candidate paths so the server
+  always picks up the key regardless of working directory.
+  """
+  # 1. cwd/.env  (uvicorn is run from ai-service/)
+  cwd_env = os.path.join(os.getcwd(), ".env")
+  # 2. __file__-relative: ai-service/app/rag/ -> ai-service/
+  file_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
+  for path in (cwd_env, file_env):
+    if os.path.isfile(path):
+      load_dotenv(dotenv_path=path, override=True)
+      return
+  # Last resort: let python-dotenv walk up from cwd
+  load_dotenv(override=True)
 
 class GeminiClient:
   """
   Unified Google Gemini API client for RAG synthesis.
-  Calls the official Google Generative Language REST API endpoint.
+  API key is resolved lazily via properties so a server restart
+  is all that is needed after adding GEMINI_API_KEY to .env.
   """
   def __init__(self):
-    self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY", "")
-    self.model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
 
+  @property
+  def api_key(self) -> str:
+    """Read API key fresh from .env on every access."""
+    _reload_env()
+    return os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY", "")
+
+  @property
+  def model(self) -> str:
+    return os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
   def is_configured(self) -> bool:
-    return bool(self.api_key and len(self.api_key.strip()) > 10)
+    key = self.api_key
+    return bool(key and len(key.strip()) > 10)
 
   async def generate_content(
     self,
@@ -112,7 +140,7 @@ class GeminiClient:
         "text": f"Network error communicating with Google Gemini: {str(exc)}",
         "latency_ms": latency_ms,
         "model": self.model,
-        "success": False
+        "success": False 
       }
 
 gemini_client = GeminiClient()

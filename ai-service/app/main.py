@@ -1,3 +1,10 @@
+import os
+from dotenv import load_dotenv
+
+# Load .env before any other modules read environment variables
+_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
